@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+        <style>
+            .selector {
+                margin-top: 20px;
+            }
+
+            .event {
+                margin-top: 10px;
+            }
+
+            .footer {
+                margin-top: 30px;
+                margin-bottom: 30px;
+            }
+        </style>
+
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+    </head>
+
+    <body>
+        <!-- UI -->
+        <div class="container">
+            <div class="col-lg-12">
+                <h1>Quantifying self</h1>
+            </div>
+
+            <div class="selector col-lg-12">
+                <select class="input-lg" data-bind="value: selected_event, options: event_types, optionsCaption: 'Select...'"></select>
+            </div>
+
+            <div class="event" data-bind="with: selected_event_data">
+                <div class="col-lg-12 row" data-bind="foreach: properties">
+                    <div data-bind="css: css">
+                        <h3>
+                            <span data-bind="text: name"></span>
+                            <span data-bind="if: type == 'range'">
+                                <span data-bind="text: ': ' + val() + ' of ' + params.max"></span>
+                            </span>
+                        </h3>
+
+                        <div data-bind="template: {name: type + '-template', data: params}"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-12 footer">
+                <button class="btn btn-lg btn-success" data-bind="click: record, visible: selected_event">Record</button>
+
+                <h3 class="text-muted" data-bind="if: current_weather">
+                    <span data-bind="text: current_weather().temperature"></span> degrees outside<br>
+                    <span data-bind="text: current_weather().precip_probability_verbose()"></span> chance of rain
+                </h3>
+            </div>
+        </div>
+
+        <script type="text/html" id="range-template">
+            <input class="input-lg" type="range" data-bind="value: $parent.val, valueUpdate: 'input', attr: {min: min, max: max}">
+        </script>
+
+        <script type="text/html" id="number-template">
+            <input class="input-lg" type="number" data-bind="value: $parent.val">
+        </script>
+
+        <script type="text/html" id="select-template">
+            <select class="input-lg" data-bind="options: values, value: $parent.val"></select>
+        </script>
+
+        <script src="http://underscorejs.org/underscore-min.js"></script>
+        <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+        <script src="http://ajax.aspnetcdn.com/ajax/knockout/knockout-3.0.0.js"></script>
+        <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+        <script type="text/javascript">
+            var Keen=Keen||{configure:function(e){this._cf=e},addEvent:function(e,t,n,i){this._eq=this._eq||[],this._eq.push([e,t,n,i])},setGlobalProperties:function(e){this._gp=e},onChartsReady:function(e){this._ocrq=this._ocrq||[],this._ocrq.push(e)}};(function(){var e=document.createElement("script");e.type="text/javascript",e.async=!0,e.src=("https:"==document.location.protocol?"https://":"http://")+"dc8na2hxrj29i.cloudfront.net/code/keen-2.1.0-min.js";var t=document.getElementsByTagName("script")[0];t.parentNode.insertBefore(e,t)})();
+
+            Keen.configure({
+                projectId: "53586dc173f4bb39c9000000",
+                
+                writeKey: "cc771afcfa1e99361e3515482087006795e8e7f5b267c074001da13689badf5daf07d78e1e626b70365f8e8f6c93c3eb7662c8db1c7a944e76f9cc6ed5ef7bbc393d4288069cdbed729c16dfb534ab75d2292c238f0c01a1467008e125e44399a6b0833cd5d474ce9596c37c54211b72",
+
+                readKey: "e3c15cc6c70b94f65cd092ff631ade6eaf9358ad4a5d22fdbe8b65066f0958af3912b40fac0716be3899cee923682d0c42e31789dfdcc0fa8a2b2d659dadef2374f2b2386d72528c3db3a6454c6bfd2ba33a71fb4ee7c20279f6fd680fd3097c2888ba4cb806d53c286f2caeb6e38536"
+            });
+        </script>
+        
+        <script>
+            (function (ko, _, $) {
+                // split these into "modules", e.g. models.js, vm.js
+                var models = {}, vm, features = {};
+
+                // models to represent underlying data
+                models.CurrentWeather = function (data) {
+                    var s = this;
+
+                    data = data || {};
+
+                    this.temperature = ko.observable(data.temperature);
+                    this.cloud_cover = ko.observable(data.cloudCover);
+                    this.humidity = ko.observable(data.humidity);
+                    this.ozone = ko.observable(data.ozone);
+                    this.pressure = ko.observable(data.pressure);
+                    this.visibility = ko.observable(data.visibility);
+                    this.wind_speed = ko.observable(data.windSpeed);
+                    this.wind_bearing = ko.observable(data.windBearing);
+                    this.precip_intensity = ko.observable(data.precipIntensity);
+                    this.precip_probability = ko.observable(data.precipProbability);
+                    this.precip_type = ko.observable(data.precipType);
+
+                    this.precip_probability_verbose = ko.computed(function() {
+                        return Math.round(s.precip_probability() * 100) + '%';
+                    });
+                };
+
+                // view model
+                vm = (function () {
+                    s = {};
+
+                    s.current_weather = ko.observable();
+
+                    s.events = ko.observableArray([
+                        {
+                            name: 'Sleep',
+                            properties: [
+                                {
+                                    name: 'I...',
+                                    type: 'select',
+                                    css: 'col-lg-3',
+                                    key: 'event',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: ['just woke up', 'am off to bed']
+                                    }
+                                },
+
+                                {
+                                    name: 'How sleepy are you?',
+                                    type: 'range',
+                                    css: 'col-lg-12',
+                                    key: 'sleepy',
+                                    val: ko.observable(5),
+                                    params: {
+                                        min: 1,
+                                        max: 10
+                                    }
+                                },
+
+                                {
+                                    name: 'How tired are you?',
+                                    type: 'range',
+                                    css: 'col-lg-12',
+                                    key: 'tired',
+                                    val: ko.observable(5),
+                                    params: {
+                                        min: 1,
+                                        max: 10
+                                    }
+                                }
+                            ]
+                        },
+
+                        {
+                            name: 'Drank water',
+                            properties: [
+                                {
+                                    name: 'Glasses',
+                                    type: 'select',
+                                    css: 'col-lg-3',
+                                    key: 'glasses',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: _.range(0.5, 3, 0.5)
+                                    }
+                                }
+                            ]
+                        },
+
+                        {
+                            name: 'Commute',
+                            properties: [
+                                {
+                                    name: 'How?',
+                                    type: 'select',
+                                    css: 'col-lg-3 col-md-3 col-sm-3 col-xs-6',
+                                    key: 'mode_of_transport',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: ['biking', 'walking', 'driving', 'public transit']
+                                    }
+                                },
+
+                                {
+                                    name: 'How long did it take? (min)',
+                                    type: 'select',
+                                    css: 'col-lg-2 col-md-2 col-sm-3 col-xs-6',
+                                    key: 'duration',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: _.range(5, 120, 5)
+                                    }
+                                },
+
+                                {
+                                    name: 'How much fun was it?',
+                                    type: 'range',
+                                    css: 'col-lg-2 col-md-2 col-sm-3 col-xs-12',
+                                    key: 'duration',
+                                    val: ko.observable(5),
+                                    params: {
+                                        min: 1,
+                                        max: 10
+                                    }
+                                },
+                            ]
+                        },
+
+                        {
+                            name: 'Exercise',
+                            properties: [
+                                {
+                                    name: 'Location',
+                                    type: 'select',
+                                    css: 'col-lg-2 col-md-2 col-sm-3 col-xs-6',
+                                    key: 'location',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: ['Home', 'Outdoors', 'Gym']
+                                    }
+                                },
+
+                                {
+                                    name: 'Type',
+                                    type: 'select',
+                                    css: 'col-lg-2 col-md-2 col-sm-3 col-xs-6',
+                                    key: 'type',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: ['Weight lifting', 'Bodyweight', 'Cardio']
+                                    }
+                                },
+
+                                {
+                                    name: 'Duration (hr)',
+                                    type: 'select',
+                                    css: 'col-lg-3 col-md-3 col-sm-4 col-xs-12',
+                                    key: 'duration',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: _.range(0.25, 24, 0.25)
+                                    }
+                                },
+
+                                {
+                                    name: 'Rigor',
+                                    type: 'range',
+                                    css: 'col-lg-7 col-md-7 col-sm-10 col-xs-12',
+                                    key: 'rigor',
+                                    val: ko.observable(5),
+                                    params: {
+                                        min: 1,
+                                        max: 10
+                                    }
+                                }
+                            ]
+                        },
+
+                        {
+                            name: 'Eating',
+                            properties: [
+                                {
+                                    name: 'Where from?',
+                                    type: 'select',
+                                    css: 'col-lg-2 col-md-2 col-sm-3 col-xs-6',
+                                    key: 'type',
+                                    val: ko.observable(),
+                                    params: {
+                                        values: ['home made', 'bought']
+                                    }
+                                },
+
+                                {
+                                    name: 'How tasty was it?',
+                                    type: 'range',
+                                    css: 'col-lg-7 col-md-7 col-sm-10 col-xs-12',
+                                    key: 'tasty',
+                                    val: ko.observable(),
+                                    params: {
+                                        min: 1,
+                                        max: 10
+                                    }
+                                },
+                            ]
+                        }
+                    ]);
+
+                    s.selected_event = ko.observable();
+                    
+                    s.selected_event_data = ko.computed(function() {
+                        if (!s.selected_event()) {
+                            return;
+                        }
+
+                        return _.filter(s.events(), function (event) {
+                            return event.name == s.selected_event();
+                        })[0];
+                    });
+
+                    s.event_types = ko.computed(function () {
+                        return _.map(s.events(), function (event) {
+                            return event.name;
+                        });
+                    });
+
+                    s.record = function() {
+                        var data = s.selected_event_data(), props = {};
+
+                        _.each(data.properties, function(prop) {
+                            props[prop.key] = prop.val();
+                        });
+
+                        Keen.addEvent(s.selected_event(), props);
+
+                        s.selected_event(undefined);
+                    };
+
+                    return s;
+                })();
+
+
+                // fetch data and initialize DOM bindings
+                $(function () {
+                    navigator.geolocation.getCurrentPosition(function (position) {
+                        var lat = position.coords.latitude, lon = position.coords.longitude;
+
+                        $.getJSON('https://api.forecast.io/forecast/d0d835fd7fad5ca79714dded75eb1181/' + lat + ',' + lon + '?units=si&callback=?', function (data) {
+                            vm.current_weather(new models.CurrentWeather(data.currently));
+                        });
+                    });
+
+                    Keen.setGlobalProperties(function () {
+                        return {'weather': ko.toJS(vm.current_weather())};
+                    });
+
+                    ko.applyBindings(vm);
+                });
+            })(ko, _, $);
+        </script>
+    </body>
+</html>
